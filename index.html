@@ -695,6 +695,11 @@ function commitNumber(nr, iso){
   if(monthly()){ const k = numberKey(iso); S.counters[k] = Math.max(S.counters[k]||0, n); }
   else S.nextNr = Math.max(S.nextNr, n+1);
 }
+function releaseNumber(nr, iso){
+  const n = trailingInt(nr); if(n===null) return;
+  if(monthly()){ const k = numberKey(iso); if(S.counters[k]===n) S.counters[k] = n-1; }
+  else if(S.nextNr===n+1) S.nextNr = n;
+}
 function takeNumber(iso){ const nr = peekNumber(iso); commitNumber(nr, iso); return nr; }
 function migrate(){
   if(typeof S.nextNr!=='number' || !(S.nextNr>0)){
@@ -1056,7 +1061,7 @@ function invoiceRows(list){
     if(s==='offen'||s==='ueberfaellig') top += A('paid','Bezahlt','ok') + A('remind','Erinnern');
     if(s==='bezahlt') top += A('unpaid','Zahlung zurücknehmen');
     if(r.typ!=='storno') top += A('copy','Kopieren');
-    const bottom = (s==='offen'||s==='ueberfaellig'||s==='bezahlt') ? A('storno','Stornieren','danger') : '';
+    const bottom = ((s==='offen'||s==='ueberfaellig'||s==='bezahlt') ? A('storno','Stornieren','danger') : '') + A('del','Löschen','danger');
     let due = '';
     if(s==='offen' || s==='ueberfaellig'){
       const mn = (r.mahnungen||[]).length;
@@ -1097,7 +1102,7 @@ function vStart(m){
 let rFilter = 'alle', rSearch = '';
 function vRechnungen(m){
   m.innerHTML = `
-    <div class="head"><div><h1>Rechnungen</h1><p class="sub">Rechnungen werden nicht gelöscht. Fehlerhafte Rechnungen stornieren Sie und schreiben eine neue.</p></div>
+    <div class="head"><div><h1>Rechnungen</h1><p class="sub">Fehlerhafte Rechnungen, die schon verschickt wurden, bitte stornieren und neu schreiben. Löschen nur für Rechnungen, die nie verschickt wurden.</p></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" data-act="csv">Liste für Steuerberater (CSV)</button><button class="btn primary" data-go="neu">Neue Rechnung</button></div></div>
     <div class="toolbar">
       <div class="seg" role="group" aria-label="Filter">${['alle','offen','ueberfaellig','bezahlt','storniert'].map(f=>`<button data-filter="${f}" aria-pressed="${rFilter===f}">${{alle:'Alle',offen:'Offen',ueberfaellig:'Überfällig',bezahlt:'Bezahlt',storniert:'Storniert'}[f]}</button>`).join('')}</div>
@@ -1636,6 +1641,21 @@ document.addEventListener('click', async e => {
         r.mahnungen = r.mahnungen || []; const d = today(); r.mahnungen.push(d); save(); render();
         const mo = mahnungOpts(r, d, n), mi = fileFor.mahnung(r, n);
         savePdf(mo, mi, false).then(auto => showDoc(mo, n + '. Zahlungserinnerung zu ' + r.nr, mi, auto));
+      } break; }
+    case 'del': {
+      const isStorno = r.typ==='storno';
+      const linked = !isStorno && r.stornoNr ? S.rechnungen.find(x => x.typ==='storno' && x.nr===r.stornoNr) : null;
+      const orig = isStorno ? S.rechnungen.find(x => x.typ!=='storno' && x.nr===r.stornoVon) : null;
+      let txt = `${isStorno?'Stornorechnung':'Rechnung'} ${esc(r.nr)} wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.<br><br><strong>Nur löschen, wenn sie nie verschickt wurde.</strong> Verschickte Rechnungen bitte stornieren.`;
+      if(linked) txt += `<br><br>Die zugehörige Stornorechnung ${esc(linked.nr)} wird mit gelöscht.`;
+      if(orig) txt += `<br><br>Rechnung ${esc(orig.nr)} gilt danach wieder als nicht storniert.`;
+      txt += `<br><br>Eine bereits gespeicherte PDF im PDF-Ordner bitte selbst löschen.`;
+      if(await confirmDlg('Rechnung löschen?', txt, 'Endgültig löschen', true)){
+        const gone = [r].concat(linked ? [linked] : []);
+        S.rechnungen = S.rechnungen.filter(x => !gone.includes(x));
+        if(orig){ orig.status = orig.bezahltAm ? 'bezahlt' : 'offen'; delete orig.stornoNr; }
+        gone.slice().reverse().forEach(x => releaseNumber(x.nr, x.datum));
+        save(); toast('Rechnung gelöscht'); render();
       } break; }
     case 'storno': {
       if(await confirmDlg('Rechnung stornieren?', `Für Rechnung ${esc(r.nr)} wird eine Stornorechnung mit eigener Nummer erstellt, die den Betrag vollständig aufhebt. Das lässt sich nicht rückgängig machen.`, 'Stornieren', true)){

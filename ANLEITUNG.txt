@@ -73,6 +73,10 @@ Hinweise
 - Jeder Computer hat seine eigenen Daten. Umzug auf einen neuen Computer:
   App dort installieren > Einstellungen > "Sicherung einspielen" und die
   Datei "...-Sicherung-aktuell.json" aus dem Sicherungsordner auswählen.
+- Fehlerhafte Rechnung: Wurde sie schon verschickt, bitte "Stornieren"
+  und neu schreiben. "Löschen" nur für Rechnungen, die nie verschickt
+  wurden (z. B. Tippfehler direkt nach dem Erstellen). Die PDF im
+  PDF-Ordner dann selbst löschen.
 - Den Browserverlauf NICHT mit "Website-Daten / Cookies" löschen, ohne
   vorher eine aktuelle Sicherung zu haben.
 - Updates: geänderte Dateien erneut auf GitHub hochladen. Die App holt sie
